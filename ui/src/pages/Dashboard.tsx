@@ -6,7 +6,6 @@ import { activityApi } from "../api/activity";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { projectsApi } from "../api/projects";
-import { heartbeatsApi } from "../api/heartbeats";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -17,18 +16,24 @@ import { StatusIcon } from "../components/StatusIcon";
 
 import { ActivityRow } from "../components/ActivityRow";
 import { Identity } from "../components/Identity";
-import { timeAgo } from "../lib/timeAgo";
-import { cn, formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard, PauseCircle } from "lucide-react";
+import { Bot, CircleDot, FileText, Handshake, LayoutDashboard, PauseCircle, Presentation, ShieldCheck } from "lucide-react";
 import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
-import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
 import { PageSkeleton } from "../components/PageSkeleton";
-import type { Agent, Issue } from "@paperclipai/shared";
+import type { Agent, Issue, Project } from "@paperclipai/shared";
 import { PluginSlotOutlet } from "@/plugins/slots";
 
-function getRecentIssues(issues: Issue[]): Issue[] {
-  return [...issues]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+function parseDate(value: string | null): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function endOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 }
 
 export function Dashboard() {
@@ -73,14 +78,6 @@ export function Dashboard() {
     queryFn: () => projectsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
   });
-
-  const { data: runs } = useQuery({
-    queryKey: queryKeys.heartbeats(selectedCompanyId!),
-    queryFn: () => heartbeatsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-  });
-
-  const recentIssues = issues ? getRecentIssues(issues) : [];
   const recentActivity = useMemo(() => (activity ?? []).slice(0, 10), [activity]);
 
   useEffect(() => {
@@ -185,9 +182,73 @@ export function Dashboard() {
 
   const hasNoAgents = agents !== undefined && agents.length === 0;
 
+  const projectById = useMemo(() => {
+    const map = new Map<string, Project>();
+    for (const p of projects ?? []) map.set(p.id, p);
+    return map;
+  }, [projects]);
+
+  const pipelineCounts = useMemo(() => {
+    const counts = {
+      inquiry: 0,
+      proposal: 0,
+      contract: 0,
+      planning: 0,
+      ops: 0,
+      completedThisMonth: 0,
+    };
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    for (const issue of issues ?? []) {
+      // Stage mapping is best-effort: Paperclip's generic task statuses → event pipeline stages.
+      // We can refine later when event-specific statuses/tags are introduced.
+      if (issue.status === "backlog") counts.inquiry++;
+      else if (issue.status === "todo") counts.proposal++;
+      else if (issue.status === "in_review") counts.contract++;
+      else if (issue.status === "in_progress") counts.planning++;
+      else if (issue.status === "blocked") counts.ops++;
+
+      if (issue.status === "done") {
+        const completedAt = issue.completedAt ? new Date(issue.completedAt) : null;
+        if (completedAt && completedAt >= monthStart && completedAt <= monthEnd) {
+          counts.completedThisMonth++;
+        }
+      }
+    }
+
+    return counts;
+  }, [issues]);
+
+  const urgentIssues = useMemo(() => {
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const windowEnd = endOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3));
+
+    const items = (issues ?? [])
+      .filter((issue) => issue.status !== "done" && issue.status !== "cancelled")
+      .map((issue) => {
+        const project = issue.projectId ? projectById.get(issue.projectId) : null;
+        const targetDate = project ? parseDate(project.targetDate) : null;
+        return { issue, project, targetDate };
+      })
+      .filter(({ targetDate }) => !!targetDate && targetDate >= todayStart && targetDate <= windowEnd)
+      .sort((a, b) => (a.targetDate!.getTime() - b.targetDate!.getTime()));
+
+    return items;
+  }, [issues, projectById]);
+
   return (
     <div className="space-y-6">
       {error && <p className="text-sm text-destructive">{error.message}</p>}
+
+      {/* Section 1 — Header */}
+      <div className="space-y-1">
+        <div className="text-2xl font-semibold tracking-tight">Agency OS</div>
+        <div className="text-sm text-muted-foreground">Chris &amp; Partners AI Operations</div>
+      </div>
 
       {hasNoAgents && (
         <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/25 dark:bg-amber-950/60">
@@ -205,8 +266,6 @@ export function Dashboard() {
           </button>
         </div>
       )}
-
-      <ActiveAgentsPanel companyId={selectedCompanyId!} />
 
       {data && (
         <>
@@ -229,75 +288,116 @@ export function Dashboard() {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
+          {/* Section 2 — Event Pipeline Summary */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Event Pipeline
+            </h3>
             <MetricCard
-              icon={Bot}
-              value={data.agents.active + data.agents.running + data.agents.paused + data.agents.error}
-              label="Agents Enabled"
-              to="/agents"
-              description={
-                <span>
-                  {data.agents.running} running{", "}
-                  {data.agents.paused} paused{", "}
-                  {data.agents.error} errors
-                </span>
-              }
+              icon={FileText}
+              value={pipelineCounts.inquiry}
+              label="문의접수 중"
+              to="/inbox"
             />
             <MetricCard
               icon={CircleDot}
-              value={data.tasks.inProgress}
-              label="Tasks In Progress"
+              value={pipelineCounts.proposal}
+              label="제안서 작성 중"
               to="/issues"
-              description={
-                <span>
-                  {data.tasks.open} open{", "}
-                  {data.tasks.blocked} blocked
-                </span>
-              }
             />
             <MetricCard
-              icon={DollarSign}
-              value={formatCents(data.costs.monthSpendCents)}
-              label="Month Spend"
-              to="/costs"
-              description={
-                <span>
-                  {data.costs.monthBudgetCents > 0
-                    ? `${data.costs.monthUtilizationPercent}% of ${formatCents(data.costs.monthBudgetCents)} budget`
-                    : "Unlimited budget"}
-                </span>
-              }
+              icon={Handshake}
+              value={pipelineCounts.contract}
+              label="계약 완료"
+              to="/projects"
+            />
+            <MetricCard
+              icon={Presentation}
+              value={pipelineCounts.planning}
+              label="기획 진행 중"
+              to="/issues"
+            />
+            <MetricCard
+              icon={Bot}
+              value={pipelineCounts.ops}
+              label="운영 진행 중"
+              to="/issues"
             />
             <MetricCard
               icon={ShieldCheck}
-              value={data.pendingApprovals + data.budgets.pendingApprovals}
-              label="Pending Approvals"
-              to="/approvals"
-              description={
-                <span>
-                  {data.budgets.pendingApprovals > 0
-                    ? `${data.budgets.pendingApprovals} budget overrides awaiting board review`
-                    : "Awaiting board review"}
-                </span>
-              }
+              value={pipelineCounts.completedThisMonth}
+              label="이번 달 완료"
+              to="/issues"
             />
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <ChartCard title="Run Activity" subtitle="Last 14 days">
-              <RunActivityChart runs={runs ?? []} />
-            </ChartCard>
-            <ChartCard title="Issues by Priority" subtitle="Last 14 days">
-              <PriorityChart issues={issues ?? []} />
-            </ChartCard>
-            <ChartCard title="Issues by Status" subtitle="Last 14 days">
-              <IssueStatusChart issues={issues ?? []} />
-            </ChartCard>
-            <ChartCard title="Success Rate" subtitle="Last 14 days">
-              <SuccessRateChart runs={runs ?? []} />
-            </ChartCard>
+          {/* Section 3 — AI Team Status */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              AI Team Status
+            </h3>
+            <ActiveAgentsPanel companyId={selectedCompanyId!} />
           </div>
 
+          {/* Section 4 — 긴급 태스크 (3일 이내) */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              긴급 태스크
+            </h3>
+            {urgentIssues.length === 0 ? (
+              <div className="border border-border p-4">
+                <p className="text-sm text-muted-foreground">
+                  3일 이내 마감(프로젝트 Target Date 기준) 태스크가 없습니다.
+                </p>
+              </div>
+            ) : (
+              <div className="border border-border divide-y divide-border overflow-hidden">
+                {urgentIssues.slice(0, 10).map(({ issue, project, targetDate }) => (
+                  <Link
+                    key={issue.id}
+                    to={`/issues/${issue.identifier ?? issue.id}`}
+                    className="px-4 py-3 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
+                  >
+                    <div className="flex items-start gap-2 sm:items-center sm:gap-3">
+                      <span className="shrink-0 sm:hidden">
+                        <StatusIcon status={issue.status} />
+                      </span>
+
+                      <span className="flex min-w-0 flex-1 flex-col gap-1 sm:contents">
+                        <span className="line-clamp-2 text-sm sm:order-2 sm:flex-1 sm:min-w-0 sm:line-clamp-none sm:truncate">
+                          {issue.title}
+                        </span>
+                        <span className="flex items-center gap-2 sm:order-1 sm:shrink-0">
+                          <span className="hidden sm:inline-flex"><StatusIcon status={issue.status} /></span>
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {issue.identifier ?? issue.id.slice(0, 8)}
+                          </span>
+                          {project?.name ? (
+                            <span className="text-xs text-muted-foreground truncate max-w-[12rem]">
+                              {project.name}
+                            </span>
+                          ) : null}
+                          {issue.assigneeAgentId && (() => {
+                            const name = agentName(issue.assigneeAgentId);
+                            return name
+                              ? <span className="hidden sm:inline-flex"><Identity name={name} size="sm" /></span>
+                              : null;
+                          })()}
+                          {targetDate ? (
+                            <span className="text-xs text-muted-foreground shrink-0 sm:order-last">
+                              Due {Math.max(0, Math.ceil((targetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))}d
+                            </span>
+                          ) : null}
+                        </span>
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Keep extensibility for future widgets without changing fetch logic */}
           <PluginSlotOutlet
             slotTypes={["dashboardWidget"]}
             context={{ companyId: selectedCompanyId }}
@@ -305,80 +405,26 @@ export function Dashboard() {
             itemClassName="rounded-lg border bg-card p-4 shadow-sm"
           />
 
-          <div className="grid md:grid-cols-2 gap-4">
-            {/* Recent Activity */}
-            {recentActivity.length > 0 && (
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                  Recent Activity
-                </h3>
-                <div className="border border-border divide-y divide-border overflow-hidden">
-                  {recentActivity.map((event) => (
-                    <ActivityRow
-                      key={event.id}
-                      event={event}
-                      agentMap={agentMap}
-                      entityNameMap={entityNameMap}
-                      entityTitleMap={entityTitleMap}
-                      className={animatedActivityIds.has(event.id) ? "activity-row-enter" : undefined}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Recent Tasks */}
+          {/* Keep recent activity available below the operational dashboard */}
+          {recentActivity.length > 0 && (
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Recent Tasks
+                Recent Activity
               </h3>
-              {recentIssues.length === 0 ? (
-                <div className="border border-border p-4">
-                  <p className="text-sm text-muted-foreground">No tasks yet.</p>
-                </div>
-              ) : (
-                <div className="border border-border divide-y divide-border overflow-hidden">
-                  {recentIssues.slice(0, 10).map((issue) => (
-                    <Link
-                      key={issue.id}
-                      to={`/issues/${issue.identifier ?? issue.id}`}
-                      className="px-4 py-3 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
-                    >
-                      <div className="flex items-start gap-2 sm:items-center sm:gap-3">
-                        {/* Status icon - left column on mobile */}
-                        <span className="shrink-0 sm:hidden">
-                          <StatusIcon status={issue.status} />
-                        </span>
-
-                        {/* Right column on mobile: title + metadata stacked */}
-                        <span className="flex min-w-0 flex-1 flex-col gap-1 sm:contents">
-                          <span className="line-clamp-2 text-sm sm:order-2 sm:flex-1 sm:min-w-0 sm:line-clamp-none sm:truncate">
-                            {issue.title}
-                          </span>
-                          <span className="flex items-center gap-2 sm:order-1 sm:shrink-0">
-                            <span className="hidden sm:inline-flex"><StatusIcon status={issue.status} /></span>
-                            <span className="text-xs font-mono text-muted-foreground">
-                              {issue.identifier ?? issue.id.slice(0, 8)}
-                            </span>
-                            {issue.assigneeAgentId && (() => {
-                              const name = agentName(issue.assigneeAgentId);
-                              return name
-                                ? <span className="hidden sm:inline-flex"><Identity name={name} size="sm" /></span>
-                                : null;
-                            })()}
-                            <span className="text-xs text-muted-foreground sm:hidden">&middot;</span>
-                            <span className="text-xs text-muted-foreground shrink-0 sm:order-last">
-                              {timeAgo(issue.updatedAt)}
-                            </span>
-                          </span>
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
+              <div className="border border-border divide-y divide-border overflow-hidden">
+                {recentActivity.map((event) => (
+                  <ActivityRow
+                    key={event.id}
+                    event={event}
+                    agentMap={agentMap}
+                    entityNameMap={entityNameMap}
+                    entityTitleMap={entityTitleMap}
+                    className={animatedActivityIds.has(event.id) ? "activity-row-enter" : undefined}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
         </>
       )}
