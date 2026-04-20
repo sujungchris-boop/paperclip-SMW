@@ -241,7 +241,7 @@ const priorities = [
 ];
 
 const EXECUTION_WORKSPACE_MODES = [
-  { value: "shared_workspace", label: "Project default" },
+  { value: "shared_workspace", label: "Event default" },
   { value: "isolated_workspace", label: "New isolated workspace" },
   { value: "reuse_existing", label: "Reuse existing workspace" },
 ] as const;
@@ -892,7 +892,7 @@ export function NewIssueDialog() {
   const hasSavedDraft = Boolean(savedDraft?.title.trim() || savedDraft?.description.trim());
   const canDiscardDraft = hasDraft || hasSavedDraft;
   const createIssueErrorMessage =
-    createIssue.error instanceof Error ? createIssue.error.message : "Failed to create issue. Try again.";
+    createIssue.error instanceof Error ? createIssue.error.message : "Failed to create task. Try again.";
   const stagedDocuments = stagedFiles.filter((file) => file.kind === "document");
   const stagedAttachments = stagedFiles.filter((file) => file.kind === "attachment");
 
@@ -1032,7 +1032,7 @@ export function NewIssueDialog() {
               </PopoverContent>
             </Popover>
             <span className="text-muted-foreground/60">&rsaquo;</span>
-            <span>{isSubIssueMode ? "New sub-issue" : "New issue"}</span>
+            <span>{isSubIssueMode ? "New sub-task" : "New task"}</span>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -1061,7 +1061,7 @@ export function NewIssueDialog() {
           <div className="px-4 pt-4 pb-2">
             <textarea
             className="w-full text-lg font-semibold bg-transparent outline-none resize-none overflow-hidden placeholder:text-muted-foreground/50"
-            placeholder="Issue title"
+            placeholder="Task title"
             rows={1}
             value={title}
             onChange={(e) => {
@@ -1157,11 +1157,11 @@ export function NewIssueDialog() {
                 ref={projectSelectorRef}
                 value={projectId}
                 options={projectOptions}
-                placeholder="Project"
+                placeholder="Event"
                 disablePortal
-                noneLabel="No project"
-                searchPlaceholder="Search projects..."
-                emptyMessage="No projects found."
+                noneLabel="No event"
+                searchPlaceholder="Search events..."
+                emptyMessage="No events found."
                 onChange={handleProjectChange}
                 onConfirm={() => {
                   descriptionEditorRef.current?.focus();
@@ -1176,7 +1176,7 @@ export function NewIssueDialog() {
                       <span className="truncate">{option.label}</span>
                     </>
                   ) : (
-                    <span className="text-muted-foreground">Project</span>
+                    <span className="text-muted-foreground">Event</span>
                   )
                 }
                 renderOption={(option) => {
@@ -1672,7 +1672,7 @@ export function NewIssueDialog() {
               {createIssue.isPending ? (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  Creating issue...
+                  Creating task...
                 </span>
               ) : createIssue.isError ? (
                 <span className="text-xs text-destructive">{createIssueErrorMessage}</span>
@@ -1687,7 +1687,7 @@ export function NewIssueDialog() {
             >
               <span className="inline-flex items-center justify-center gap-1.5">
                 {createIssue.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                <span>{createIssue.isPending ? "Creating..." : isSubIssueMode ? "Create Sub-Issue" : "Create Issue"}</span>
+                <span>{createIssue.isPending ? "Creating..." : isSubIssueMode ? "Create Sub-Task" : "Create Task"}</span>
               </span>
             </Button>
           </div>
