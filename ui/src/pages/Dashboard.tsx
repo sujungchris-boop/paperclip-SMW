@@ -160,26 +160,6 @@ export function Dashboard() {
     return agents.find((a) => a.id === id)?.name ?? null;
   };
 
-  if (!selectedCompanyId) {
-    if (companies.length === 0) {
-      return (
-        <EmptyState
-          icon={LayoutDashboard}
-          message="Welcome to Paperclip. Set up your first company and agent to get started."
-          action="Get Started"
-          onAction={openOnboarding}
-        />
-      );
-    }
-    return (
-      <EmptyState icon={LayoutDashboard} message="Create or select a company to view the dashboard." />
-    );
-  }
-
-  if (isLoading) {
-    return <PageSkeleton variant="dashboard" />;
-  }
-
   const hasNoAgents = agents !== undefined && agents.length === 0;
 
   const projectById = useMemo(() => {
@@ -239,6 +219,26 @@ export function Dashboard() {
 
     return items;
   }, [issues, projectById]);
+
+  if (!selectedCompanyId) {
+    if (companies.length === 0) {
+      return (
+        <EmptyState
+          icon={LayoutDashboard}
+          message="Welcome to Paperclip. Set up your first company and agent to get started."
+          action="Get Started"
+          onAction={openOnboarding}
+        />
+      );
+    }
+    return (
+      <EmptyState icon={LayoutDashboard} message="Create or select a company to view the dashboard." />
+    );
+  }
+
+  if (isLoading) {
+    return <PageSkeleton variant="dashboard" />;
+  }
 
   return (
     <div className="space-y-6">
