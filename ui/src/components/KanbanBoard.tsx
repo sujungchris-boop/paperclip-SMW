@@ -21,7 +21,7 @@ import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
 import { Identity } from "./Identity";
 import type { Issue } from "@paperclipai/shared";
-import { issueStatusEventPipelineLabel } from "./IssueColumns";
+import { issueStatusEventPipelineLabel } from "../lib/event-terminology";
 
 const boardStatuses = [
   "backlog",
