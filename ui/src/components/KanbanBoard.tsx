@@ -21,6 +21,7 @@ import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
 import { Identity } from "./Identity";
 import type { Issue } from "@paperclipai/shared";
+import { issueStatusEventPipelineLabel } from "./IssueColumns";
 
 const boardStatuses = [
   "backlog",
@@ -32,8 +33,14 @@ const boardStatuses = [
   "cancelled",
 ];
 
-function statusLabel(status: string): string {
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+function dDayLabel(date: Date): string {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0).getTime();
+  const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "D-day";
+  if (diffDays > 0) return `D-${diffDays}`;
+  return `D+${Math.abs(diffDays)}`;
 }
 
 interface Agent {
@@ -72,7 +79,7 @@ function KanbanColumn({
         {(!isEmpty || isOver) && (
           <>
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {statusLabel(status)}
+              {status === "cancelled" ? "Cancelled" : issueStatusEventPipelineLabel(status)}
             </span>
             <span className="text-xs text-muted-foreground/60 ml-auto tabular-nums">
               {issues.length}
@@ -165,6 +172,17 @@ function KanbanCard({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
             </span>
           )}
+          {(() => {
+            const raw = (issue.project as unknown as { targetDate?: string | null } | null)?.targetDate ?? null;
+            if (!raw) return null;
+            const d = new Date(raw);
+            if (Number.isNaN(d.getTime())) return null;
+            return (
+              <span className="ml-auto text-[11px] font-medium text-muted-foreground tabular-nums">
+                {dDayLabel(d)}
+              </span>
+            );
+          })()}
         </div>
         <p className="text-sm leading-snug line-clamp-2 mb-2">{issue.title}</p>
         <div className="flex items-center gap-2">
@@ -260,16 +278,21 @@ export function KanbanBoard({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">
-        {boardStatuses.map((status) => (
-          <KanbanColumn
-            key={status}
-            status={status}
-            issues={columnIssues[status] ?? []}
-            agents={agents}
-            liveIssueIds={liveIssueIds}
-          />
-        ))}
+      <div className="space-y-2">
+        <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Event Pipeline
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">
+          {boardStatuses.map((status) => (
+            <KanbanColumn
+              key={status}
+              status={status}
+              issues={columnIssues[status] ?? []}
+              agents={agents}
+              liveIssueIds={liveIssueIds}
+            />
+          ))}
+        </div>
       </div>
       <DragOverlay>
         {activeIssue ? (
