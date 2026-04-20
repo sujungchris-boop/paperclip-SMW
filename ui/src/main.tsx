@@ -20,6 +20,37 @@ import { PluginLauncherProvider } from "./plugins/launchers";
 import "@mdxeditor/editor/style.css";
 import "./index.css";
 
+function showFatalOverlay(error: unknown) {
+  try {
+    const message = error instanceof Error
+      ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
+      : String(error);
+    const el = document.createElement("pre");
+    el.setAttribute("data-paperclip-fatal", "true");
+    el.style.position = "fixed";
+    el.style.inset = "0";
+    el.style.margin = "0";
+    el.style.padding = "16px";
+    el.style.whiteSpace = "pre-wrap";
+    el.style.wordBreak = "break-word";
+    el.style.overflow = "auto";
+    el.style.background = "rgba(0,0,0,0.92)";
+    el.style.color = "#fff";
+    el.style.font = "12px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    el.textContent = `Paperclip UI crashed during startup.\n\n${message}`;
+    document.body.appendChild(el);
+  } catch {
+    // ignore
+  }
+}
+
+window.addEventListener("error", (event) => {
+  showFatalOverlay(event.error ?? event.message);
+});
+window.addEventListener("unhandledrejection", (event) => {
+  showFatalOverlay(event.reason);
+});
+
 initPluginBridge(React, ReactDOM);
 
 if ("serviceWorker" in navigator) {

@@ -43,6 +43,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <script type="module">
+      // Dev stability: if a service worker is controlling the page, it can serve stale cached JS/HTML and cause blank screens.
+      // Run this BEFORE the main bundle executes.
+      if (import.meta.env.DEV && "serviceWorker" in navigator) {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+        } catch {}
+        try {
+          if ("caches" in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+          }
+        } catch {}
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
