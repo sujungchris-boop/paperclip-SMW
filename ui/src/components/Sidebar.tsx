@@ -48,16 +48,17 @@ export function Sidebar() {
 
   return (
     <aside className="w-60 h-full min-h-0 border-r border-border bg-background flex flex-col">
-      {/* Top bar: Company name (bold) + Search — aligned with top sections (no visible border) */}
-      <div className="flex items-center gap-1 px-3 h-12 shrink-0">
+      {/* Top bar: App name + org subtitle + Search — aligned with top sections (no visible border) */}
+      <div className="flex items-center gap-2 px-3 h-12 shrink-0">
         {selectedCompany?.brandColor && (
           <div
             className="w-4 h-4 rounded-sm shrink-0 ml-1"
             style={{ backgroundColor: selectedCompany.brandColor }}
           />
         )}
-        <span className="flex-1 text-sm font-bold text-foreground truncate pl-1">
-          {selectedCompany?.name ?? "Select company"}
+        <span className="flex-1 min-w-0 truncate pl-1">
+          <div className="text-sm font-bold text-foreground truncate">Agency OS</div>
+          <div className="text-[11px] text-muted-foreground truncate">Chris &amp; Partners</div>
         </span>
         <Button
           variant="ghost"
