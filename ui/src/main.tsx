@@ -23,9 +23,30 @@ import "./index.css";
 initPluginBridge(React, ReactDOM);
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js");
-  });
+  if (import.meta.env.PROD) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js");
+    });
+  } else {
+    // Dev stability: service workers can serve stale cached UI bundles and cause intermittent blank screens.
+    // Unregister any existing SW and clear SW caches so dev always loads the latest modules from Vite.
+    window.addEventListener("load", async () => {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      } catch {
+        // ignore
+      }
+      try {
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((key) => caches.delete(key)));
+        }
+      } catch {
+        // ignore
+      }
+    });
+  }
 }
 
 const queryClient = new QueryClient({
