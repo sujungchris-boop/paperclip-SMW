@@ -82,7 +82,7 @@ export function Sidebar() {
           <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
           <SidebarNavItem
             to="/inbox"
-            label="Inbox"
+            label="Leads"
             icon={Inbox}
             badge={inboxBadge.inbox}
             badgeTone={inboxBadge.failedRuns > 0 ? "danger" : "default"}
@@ -98,9 +98,9 @@ export function Sidebar() {
         </div>
 
         <SidebarSection label="Work">
-          <SidebarNavItem to="/issues" label="Issues" icon={CircleDot} />
+          <SidebarNavItem to="/issues" label="Tasks" icon={CircleDot} />
           <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
-          <SidebarNavItem to="/goals" label="Goals" icon={Target} />
+          <SidebarNavItem to="/goals" label="Objectives" icon={Target} />
         </SidebarSection>
 
         <SidebarProjects />
@@ -108,9 +108,9 @@ export function Sidebar() {
         <SidebarAgents />
 
         <SidebarSection label="Company">
-          <SidebarNavItem to="/org" label="Org" icon={Network} />
+          <SidebarNavItem to="/org" label="Team" icon={Network} />
           <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
-          <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
+          <SidebarNavItem to="/costs" label="Budget" icon={DollarSign} />
           <SidebarNavItem to="/activity" label="Activity" icon={History} />
           <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
         </SidebarSection>
